@@ -1,0 +1,149 @@
+<!-- 
+  FSWebServer - Example Index Page
+  Copyright (c) 2015 Hristo Gochkov. All rights reserved.
+  This file is part of the WebServer library for Arduino environment.
+ 
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+  <title>GFI Monitor</title>
+  <script type="text/javascript" src="graphs.js"></script>
+  <script type="text/javascript">
+    var temp, emailFrom, emailTo, emailFromPass;
+    var reloadPeriod = 1000;
+    var running = false;
+  
+    function loadValues(){
+      if(!running) return;
+      var xh = new XMLHttpRequest();
+      xh.onreadystatechange = function(){
+        if (xh.readyState == 4){
+          if(xh.status == 200) {
+            var res = JSON.parse(xh.responseText);
+            temp.add(res.analog);
+            if(running) setTimeout(loadValues, reloadPeriod);
+          } else running = false;
+        }
+      };
+      xh.open("GET", "/all", true);
+      xh.send(null);
+    };
+    
+    function run(){
+      if(!running){
+        running = true;
+        loadValues();
+      }
+    }
+    function deleteLogFile(){
+      var xh = new XMLHttpRequest();
+      xh.onreadystatechange = function(){
+        location.reload();
+        return false;
+      };
+      xh.open("POST", "/clearfile", true);
+      xh.send(null);
+    }
+
+    function sendEmailCreds(){
+      var xh = new XMLHttpRequest();
+      xh.open("PUT", "/email", true);
+      xh.setRequestHeader('Content-type', 'application/json');
+      var data = JSON.stringify({ "emailfrom": emailFrom.value, "emailfrompass": emailFromPass.value, "emailto": emailTo.value });
+      xh.send(data);
+    }
+    
+
+    function onBodyLoad(){
+      var refreshInput = document.getElementById("refresh-rate");
+      refreshInput.value = reloadPeriod;
+      refreshInput.onchange = function(e){
+        var value = parseInt(e.target.value);
+        reloadPeriod = (value > 0)?value:0;
+        e.target.value = reloadPeriod;
+      }
+      var stopButton = document.getElementById("stop-button");
+      stopButton.onclick = function(e){
+        running = false;
+      }
+      var startButton = document.getElementById("start-button");
+      startButton.onclick = function(e){
+        run();
+      }
+      var clearButton = document.getElementById("clear-button");
+      clearButton.onclick = function(e){
+        deleteLogFile();
+      }
+
+      emailFrom = document.getElementById("email-From");
+      emailFromPass = document.getElementById("email-FromPass");
+      emailTo = document.getElementById("email-To");
+      var submitButton = document.getElementById("submit-button");
+      submitButton.onclick = function(e){
+        sendEmailCreds();
+      }
+
+      var xh = new XMLHttpRequest();
+      xh.onreadystatechange = function(){
+        if (xh.readyState == 4){
+          if(xh.status == 200) {
+            var res = JSON.parse(xh.responseText);
+            emailFrom.value = res.emailfrom;
+            emailTo.value = res.emailto;
+          } 
+        }
+      };
+      xh.open("GET", "/email", true);
+      xh.send(null);
+
+      temp = createGraph(document.getElementById("analog"), "Analog Input", 100, 128, 0, 1023, false, "cyan");
+      run();
+    }
+  </script>
+</head>
+<body id="index" style="margin:0; padding:0;" onload="onBodyLoad()">
+
+  This web page displays the status of the refrigerator GFI
+  
+  <div id="controls" style="display: block; border: 1px solid rgb(68, 68, 68); padding: 5px; margin: 5px; width: 400px; background-color: rgb(238, 238, 238);">
+    <label for="email-From" style="width: 100px; display: inline-block">Email From:</label>
+    <input type="text" style="width: 250px" id="email-From"/><br>
+    <label for="email-FromPass" style="width: 100px; display: inline-block">Password:</label>
+    <input type="password" style="width: 250px" id="email-FromPass" value = ""/><br>
+    <label for="email-To" style="width: 100px; display: inline-block">Email To:</label>
+    <input type="text" style="width: 250px" id="email-To"/><br>
+    <input type="button"  id="submit-button" value="Submit"/>
+  </div>
+
+  <div id="controls" style="display: block; border: 1px solid rgb(68, 68, 68); padding: 5px; margin: 5px; width: 362px; background-color: rgb(238, 238, 238);">
+    <label>Period (ms):</label>
+    <input type="number" id="refresh-rate"/>
+    <input type="button" id="start-button" value="Start"/>
+    <input type="button" id="stop-button" value="Stop"/>
+  </div>
+  <div id="analog"></div>
+  <p></p>
+
+  <div id="controls" style="display: block; border: 1px solid rgb(68, 68, 68); padding: 5px; margin: 5px; width: 900px; background-color: rgb(238, 238, 238);">
+    <label>Status log file:  </label>
+    <input type="button" id="clear-button" value="Clear Log File"/>
+    <p></p>
+    <object data="/Data.txt" type="text/plain" width="900" style="height: 500px">
+    <a href="/Data.txt">No Support?</a>
+  </div>
+</object>
+</body>
+</html>
